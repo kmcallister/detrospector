@@ -5,15 +5,20 @@
   , DeriveDataTypeable #-}
 module Main(main) where
 
-import qualified Data.HashMap      as H
-import qualified Data.Hashable     as H
-import qualified Data.IntMap       as IM
-import qualified System.Random.MWC as RNG
-import qualified Data.Sequence     as S
-import qualified Data.Foldable     as F
 import Data.List
 import Control.Applicative
-import System.Console.CmdArgs
+import Data.Typeable(Typeable)
+import Data.Data    (Data    )
+import qualified Data.HashMap           as H
+import qualified Data.Hashable          as H
+import qualified Data.IntMap            as IM
+import qualified System.Random.MWC      as RNG
+import qualified Data.Sequence          as S
+import qualified Data.Foldable          as F
+import qualified System.Console.CmdArgs as Arg
+import           System.Console.CmdArgs((&=))
+import qualified Data.Serialize         as Cer
+import qualified Data.ByteString        as BS
 
 -- table recording character frequency,
 -- Char mapped to Int
@@ -31,12 +36,12 @@ incr x = IM.alter (Just . f) $ fromEnum x where
 -- pick random k from [0,n), then index im at
 -- first key > k
 data PickTable = PickTable Int (IM.IntMap Char)
-  deriving (Show, Read)
+  deriving (Show)
 
 cumulate :: FreqTable -> PickTable
 cumulate t = PickTable r $ IM.fromList ps where
   (r,ps) = mapAccumL f 0 $ IM.assocs t
-  f r (x,n) = let r' = r+n in (r', (r', toEnum x))
+  f ra (x,n) = let rb = ra+n in (rb, (rb, toEnum x))
 
 type Queue a = S.Seq a
 
@@ -48,16 +53,16 @@ shift n x q
 
 -- (Chain n p hm) maps n-char subsequences to PickTables
 data Chain = Chain Int PickTable (H.HashMap (Queue Char) PickTable)
-  deriving (Show, Read)
+  deriving (Show)
 
--- orphan :/
+-- orphan
 instance (H.Hashable a) => H.Hashable (S.Seq a) where
   {-# SPECIALIZE instance H.Hashable (S.Seq Char) #-}
   hash = F.foldl' (\acc h -> acc `H.combine` H.hash h) 0
 
 makeChain :: Int -> String -> Chain
-makeChain n xs = Chain n (cumulate $ prior xs) h where
-  h = H.map cumulate $ go S.empty H.empty xs
+makeChain n ys = Chain n (cumulate $ prior ys) hm where
+  hm = H.map cumulate $ go S.empty H.empty ys
   go _ h [] = h
   go !s !h (x:xs)
     | S.length s < n = go (s S.|> x) h xs
@@ -76,7 +81,9 @@ pick :: RNG -> PickTable -> IO Char
 pick g (PickTable n im) = do
   k <- intMod g n
   case IM.split k im of
+    -- the last key in im is n, so the right list cannot be empty
     (_, IM.toList -> ((_,x):_)) -> return x
+    _ -> error "impossible"
 
 runChain :: RNG -> Chain -> IO ()
 runChain g (Chain n pri h) = go S.empty where
@@ -88,32 +95,47 @@ runChain g (Chain n pri h) = go S.empty where
     putChar x
     go (shift n x s)
 
+-- orphan
+instance (Cer.Serialize k, Cer.Serialize v, H.Hashable k, Ord k)
+       => Cer.Serialize (H.HashMap k v) where
+  put = Cer.put . H.assocs
+  get = H.fromList <$> Cer.get
+
+instance Cer.Serialize PickTable where
+  put (PickTable n t) = Cer.put (n,t)
+  get = (\(n,t) -> PickTable n t) <$> Cer.get
+
+instance Cer.Serialize Chain where
+  put (Chain n pri h) = Cer.put (n,pri,h)
+  get = (\(n,pri,h) -> Chain n pri h) <$> Cer.get
+
 data Markov
-  = Train   { n     :: Int,
+  = Train   { num   :: Int,
               out   :: FilePath }
   | Run     { chain :: FilePath }
   deriving (Show, Data, Typeable)
 
 train, run :: Markov
-train = Train { n     = def
-                     &= help "Number of characters lookback",
-                out   = def
-                     &= typFile
-                     &= help "Write chain to this file" }
+train = Train { num   = Arg.def
+                     &= Arg.help "Number of characters lookback",
+                out   = Arg.def
+                     &= Arg.typFile
+                     &= Arg.help "Write chain to this file" }
 run   = Run   { chain
-                      = def
-                     &= typFile
-                     &= help "Read chain from this file" }
+                      = Arg.def
+                     &= Arg.typFile
+                     &= Arg.help "Read chain from this file" }
 
-go :: Markov -> IO ()
-go (Train n _) | n < 1 = error "train: n must be at least 1"
-go (Train n o) = do
+mode :: Markov -> IO ()
+mode (Train n _) | n < 1 = error "train: n must be at least 1"
+mode (Train n o) = do
   c <- getContents
-  writeFile o . show $ makeChain n c
-go (Run c) = do
-  cf <- readFile c
-  ch <- readIO cf
-  RNG.withSystemRandom $ \g -> runChain g ch
+  BS.writeFile o . Cer.encode $ makeChain n c
+mode (Run c) = do
+  cf <- BS.readFile c
+  case Cer.decode cf of
+    Left  err -> error ("parse error: " ++ err)
+    Right ch  -> RNG.withSystemRandom $ \g -> runChain g ch
 
 main :: IO ()
-main = cmdArgs (modes [train, run]) >>= go
+main = Arg.cmdArgs (Arg.modes [train, run]) >>= mode
