@@ -19,6 +19,8 @@ import qualified System.Console.CmdArgs as Arg
 import           System.Console.CmdArgs((&=))
 import qualified Data.Serialize         as Cer
 import qualified Data.ByteString        as BS
+import qualified Data.ByteString.Lazy   as BSL
+import qualified Codec.Compression.GZip as Z
 
 -- table recording character frequency,
 -- Char mapped to Int
@@ -116,23 +118,23 @@ data Markov
   deriving (Show, Data, Typeable)
 
 train, run :: Markov
-train = Train { num   = Arg.def
-                     &= Arg.help "Number of characters lookback",
-                out   = Arg.def
-                     &= Arg.typFile
-                     &= Arg.help "Write chain to this file" }
-run   = Run   { chain
-                      = Arg.def
-                     &= Arg.typFile
-                     &= Arg.help "Read chain from this file" }
+train = Train { num    = Arg.def
+                      &= Arg.help "Number of characters lookback",
+                out    = Arg.def
+                      &= Arg.typFile
+                      &= Arg.help "Write chain to this file" }
+run   = Run   { chain  = Arg.def
+                      &= Arg.typFile
+                      &= Arg.help "Read chain from this file" }
 
 mode :: Markov -> IO ()
 mode (Train n _) | n < 1 = error "train: n must be at least 1"
 mode (Train n o) = do
   c <- getContents
-  BS.writeFile o . Cer.encode $ makeChain n c
+  let bs = Cer.encode $ makeChain n c
+  BSL.writeFile o . Z.compress . BSL.fromChunks $ [bs]
 mode (Run c) = do
-  cf <- BS.readFile c
+  cf <- (BS.concat . BSL.toChunks . Z.decompress) <$> BSL.readFile c
   case Cer.decode cf of
     Left  err -> error ("parse error: " ++ err)
     Right ch  -> RNG.withSystemRandom $ \g -> runChain g ch
