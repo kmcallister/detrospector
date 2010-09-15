@@ -1,0 +1,22 @@
+Name:                andreyevich
+Version:             0.1
+Description:         Markov chain text generator
+License:             BSD3
+Author:              Keegan McAllister
+Maintainer:          mcallister.keegan@gmail.com
+Build-Type:          Simple
+Cabal-Version:       >=1.2
+
+Executable andreyevich
+  main-is:       andreyevich.hs
+  build-depends:
+    base       >= 3 && < 5,
+    containers >= 0.3,
+    text       >= 0.8,
+    zlib       >= 0.5,
+    bytestring >= 0.9,
+    binary     >= 0.5,
+    cmdargs    >= 0.4,
+    mwc-random >= 0.8,
+    hashable   >= 1.0,
+    hashmap    >= 1.1

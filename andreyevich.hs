@@ -18,7 +18,7 @@ import qualified System.Random.MWC      as RNG
 import qualified Data.Sequence          as S
 import qualified Data.Foldable          as F
 import qualified System.Console.CmdArgs as Arg
-import           System.Console.CmdArgs((&=))
+import           System.Console.CmdArgs((+=),Annotate((:=)))
 import qualified Data.Binary            as Bin
 import qualified Data.ByteString.Lazy   as BSL
 import qualified Codec.Compression.GZip as Z
@@ -49,6 +49,7 @@ shift n x q
   | otherwise               = q S.|> x
 
 -- (Chain n p hm) maps n-char subsequences to PickTables
+-- p is the 'prior' distribution over the whole input
 data Chain = Chain Int PickTable (H.HashMap (Queue Char) PickTable)
   deriving (Show)
 
@@ -75,24 +76,21 @@ makeChain n ys = Chain n (cumulate $ prior ys) hm where
   incr x = IM.alter f $ fromEnum x where
     f Nothing  = Just 1
     f (Just v) = Just $! (v+1)
-  
-type RNG = RNG.GenIO
 
-pick :: RNG -> PickTable -> IO Char
-pick g (PickTable n im) = do
-  k <- (`mod` n) <$> RNG.uniform g
-  case IM.split k im of
-    -- last key in im is n, and we know k < n
-    -- therefore the right list cannot be empty
-    (_, IM.toList -> ((_,x):_)) -> return x
-    _ -> error "impossible"
-
-runChain :: RNG -> Chain -> IO ()
-runChain g (Chain n pri h) = go S.empty where
-  go !s = do
-    x <- pick g . fromMaybe pri $ H.lookup s h
+runChain :: Chain -> RNG.GenIO -> IO ()
+runChain (Chain n pri h) g = go S.empty where
+  go s = do
+    x <- pick . fromMaybe pri $ H.lookup s h
     putChar x
-    go (shift n x s)
+    go $! shift n x s
+
+  pick (PickTable t im) = do
+    k <- (`mod` t) <$> RNG.uniform g
+    case IM.split k im of
+      -- last key in im is t, and we know k < t
+      -- therefore the right list cannot be empty
+      (_, IM.toList -> ((_,x):_)) -> return x
+      _ -> error "impossible"
 
 -- orphan
 instance (Bin.Binary k, Bin.Binary v, H.Hashable k, Ord k)
@@ -108,38 +106,41 @@ instance Bin.Binary Chain where
   put (Chain n pri h) = Bin.put (n,pri,h)
   get = (\(n,pri,h) -> Chain n pri h) <$> Bin.get
 
-data Markov
+data Andreyevich
   = Train   { num      :: Int
             , out      :: FilePath }
   | Run     { chain    :: FilePath }
-  deriving (Show, Data, Typeable)
+  deriving (Show, Typeable, Data)
 
-train, run :: Markov
+train, run, modes :: Annotate Arg.Ann
 
-train = Train
-  { num       = Arg.def
-             &= Arg.help "Number of characters lookback"
-  , out       = Arg.def
-             &= Arg.typFile
-             &= Arg.help "Write chain to this file" }
+train = Arg.record Train{num=undefined, out=undefined}
+  [ num := 3
+        += Arg.help "Number of characters lookback"
+  , out := error "Must specify output chain"
+        += Arg.typFile
+        += Arg.help "Write chain to this file" ]
+  += Arg.help "Train a Markov chain from standard input"
 
-run = Run
-  { chain     = Arg.def
-             &= Arg.typFile
-             &= Arg.help "Read chain from this file" }
+run = Arg.record Run{chain=undefined}
+  [ chain := error "Must specify input chain"
+          += Arg.typFile
+          += Arg.help "Read chain from this file" ]
+  -- += Arg.help "Generate text from a Markov chain, forever"
 
-mode :: Markov -> IO ()
+modes  = Arg.modes_  [run,train]
+      += Arg.program "andreyevich"
+      += Arg.summary "andreyevich: Markov chain text generator"
+
+mode :: Andreyevich -> IO ()
 
 mode Train{num,out}
-  | num < 1 = error "train: n must be at least 1"
-  | otherwise = do
-  c <- Txt.getContents
-  BSL.writeFile out . Z.compress . Bin.encode $ makeChain num c
+  | num < 0 = error "train: n must be at least 0"
+  | otherwise = Txt.getContents
+    >>= BSL.writeFile out . Z.compress . Bin.encode . makeChain num
 
-mode Run{chain} = do
-  cf <- Z.decompress <$> BSL.readFile chain
-  let ch = Bin.decode cf
-  RNG.withSystemRandom $ \g -> runChain g ch
+mode Run{chain} = (Z.decompress <$> BSL.readFile chain)
+  >>= RNG.withSystemRandom . runChain . Bin.decode
 
 main :: IO ()
-main = Arg.cmdArgs (Arg.modes [train, run]) >>= mode
+main = Arg.cmdArgs_ modes >>= mode
