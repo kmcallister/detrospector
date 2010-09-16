@@ -88,8 +88,10 @@ runChain (Chain n h) g = go S.empty where
     putChar x
     go $! shift n x s
 
+  -- assumption: map is nonempty for empty key
   get s = fromMaybe (get $ stail s) $ H.lookup s h where
     stail (S.viewl -> (_ S.:< t)) = t
+    stail _ = error "stail: empty Seq"
 
   pick (PickTable t im) = do
     k <- (`mod` t) <$> RNG.uniform g
@@ -136,8 +138,8 @@ run = Arg.record Run{chain=undefined}
   -- += Arg.help "Generate text from a Markov chain, forever"
 
 modes  = Arg.modes_  [run,train]
-      += Arg.program "andreyevich"
-      += Arg.summary "andreyevich: Markov chain text generator"
+      += Arg.program "detrospector"
+      += Arg.summary "detrospector: Markov chain text generator"
       -- += Arg.help    "Build and run Markov chains for text generation"
 
 mode :: Mode -> IO ()

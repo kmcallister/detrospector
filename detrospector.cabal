@@ -1,4 +1,4 @@
-Name:                andreyevich
+Name:                detrospector
 Version:             0.1
 Description:         Markov chain text generator
 License:             BSD3
@@ -7,8 +7,8 @@ Maintainer:          mcallister.keegan@gmail.com
 Build-Type:          Simple
 Cabal-Version:       >=1.2
 
-Executable andreyevich
-  main-is:       andreyevich.hs
+Executable detrospector
+  main-is:       detrospector.hs
   build-depends:
     base       >= 3 && < 5,
     containers >= 0.3,
@@ -20,3 +20,4 @@ Executable andreyevich
     mwc-random >= 0.8,
     hashable   >= 1.0,
     hashmap    >= 1.1
+  ghc-options: -Wall -O2 -fno-warn-orphans
