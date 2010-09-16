@@ -9,6 +9,13 @@ Cabal-Version:       >=1.2
 
 Executable detrospector
   main-is:       detrospector.hs
+  other-modules:
+    Detrospector.Main
+    Detrospector.Types
+    Detrospector.Modes
+    Detrospector.Modes.Train
+    Detrospector.Modes.Run
+    Detrospector.Modes.Neolog
   build-depends:
     base       >= 3 && < 5,
     containers >= 0.3,
@@ -16,8 +23,8 @@ Executable detrospector
     zlib       >= 0.5,
     bytestring >= 0.9,
     binary     >= 0.5,
-    cmdargs    >= 0.5,
+    cmdargs    >= 0.4,
     mwc-random >= 0.8,
     hashable   >= 1.0,
     hashmap    >= 1.1
-  ghc-options: -Wall -O2 -fno-warn-orphans -fno-warn-missing-fields
+  ghc-options: -Wall -O2
