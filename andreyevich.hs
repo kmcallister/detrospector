@@ -25,13 +25,16 @@ import qualified Codec.Compression.GZip as Z
 import qualified Data.Text.Lazy         as Txt
 import qualified Data.Text.Lazy.IO      as Txt
 
--- table recording character frequency,
--- Char mapped to Int
+-- This table records character frequency;
+-- each Int key is the codepoint of a Char.
 type FreqTable = IM.IntMap Int
 
--- to pick from (PickTable n im):
--- pick random k from [0,n), then index im at
--- first key > k
+-- A table for efficiently sampling a finite
+-- discrete distribution of Char.
+--
+-- To sample from (PickTable n im):
+-- * Pick random k from [0,n) uniformly
+-- * Take value of first key > k
 data PickTable = PickTable Int (IM.IntMap Char)
   deriving (Show)
 
@@ -42,34 +45,34 @@ cumulate t = PickTable r $ IM.fromList ps where
 
 type Queue a = S.Seq a
 
+-- Enqueue at one side while dropping from the other
 shift :: Int -> a -> Queue a -> Queue a
 shift n x q
   | S.length q < n          = q S.|> x
   | (_ S.:< s) <- S.viewl q = s S.|> x
   | otherwise               = q S.|> x
 
--- (Chain n p hm) maps n-char subsequences to PickTables
--- p is the 'prior' distribution over the whole input
-data Chain = Chain Int PickTable (H.HashMap (Queue Char) PickTable)
+-- The Markov chain itself.
+-- (Chain n hm) maps subsequences of up to n Chars to finite
+-- Char distributions represented by PickTables in hm.
+data Chain = Chain Int (H.HashMap (Queue Char) PickTable)
   deriving (Show)
 
--- orphan
+-- orphan instance: make Seq hashable
 instance (H.Hashable a) => H.Hashable (S.Seq a) where
   {-# SPECIALIZE instance H.Hashable (S.Seq Char) #-}
   hash = F.foldl' (\acc h -> acc `H.combine` H.hash h) 0
 
+-- Build a Markov chain with n-Char history from some input text.
 makeChain :: Int -> Txt.Text -> Chain
-makeChain n ys = Chain n (cumulate $ prior ys) hm where
+makeChain n ys = Chain n hm where
   hm = H.map cumulate . snd $ Txt.foldl' roll (S.empty,H.empty) ys
 
   roll (!s,!h) x
-    | S.length s < n = (s S.|> x , h)
-    | otherwise      = (shift n x s, H.alter (ins x) s h)
+    = (shift n x s, F.foldr (H.alter $ ins x) h $ S.tails s)
 
   ins x Nothing  = Just $! sing x
   ins x (Just v) = Just $! incr x v
-
-  prior = Txt.foldl' (flip incr) IM.empty
 
   sing x = IM.singleton (fromEnum x) 1
 
@@ -77,12 +80,16 @@ makeChain n ys = Chain n (cumulate $ prior ys) hm where
     f Nothing  = Just 1
     f (Just v) = Just $! (v+1)
 
+-- Run a Markov chain, printing output forever.
 runChain :: Chain -> RNG.GenIO -> IO ()
-runChain (Chain n pri h) g = go S.empty where
+runChain (Chain n h) g = go S.empty where
   go s = do
-    x <- pick . fromMaybe pri $ H.lookup s h
+    x <- pick $ get s
     putChar x
     go $! shift n x s
+
+  get s = fromMaybe (get $ stail s) $ H.lookup s h where
+    stail (S.viewl -> (_ S.:< t)) = t
 
   pick (PickTable t im) = do
     k <- (`mod` t) <$> RNG.uniform g
@@ -92,21 +99,21 @@ runChain (Chain n pri h) g = go S.empty where
       (_, IM.toList -> ((_,x):_)) -> return x
       _ -> error "impossible"
 
--- orphan
+-- orphan instance: Binary serialization of HashMap
 instance (Bin.Binary k, Bin.Binary v, H.Hashable k, Ord k)
        => Bin.Binary (H.HashMap k v) where
   put = Bin.put . H.assocs
   get = H.fromList <$> Bin.get
-
+  
 instance Bin.Binary PickTable where
   put (PickTable n t) = Bin.put (n,t)
   get = uncurry PickTable <$> Bin.get
 
 instance Bin.Binary Chain where
-  put (Chain n pri h) = Bin.put (n,pri,h)
-  get = (\(n,pri,h) -> Chain n pri h) <$> Bin.get
+  put (Chain n h) = Bin.put (n,h)
+  get = uncurry Chain <$> Bin.get
 
-data Andreyevich
+data Mode
   = Train   { num      :: Int
             , out      :: FilePath }
   | Run     { chain    :: FilePath }
@@ -131,8 +138,9 @@ run = Arg.record Run{chain=undefined}
 modes  = Arg.modes_  [run,train]
       += Arg.program "andreyevich"
       += Arg.summary "andreyevich: Markov chain text generator"
+      -- += Arg.help    "Build and run Markov chains for text generation"
 
-mode :: Andreyevich -> IO ()
+mode :: Mode -> IO ()
 
 mode Train{num,out}
   | num < 0 = error "train: n must be at least 0"

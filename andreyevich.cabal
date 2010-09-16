@@ -16,7 +16,7 @@ Executable andreyevich
     zlib       >= 0.5,
     bytestring >= 0.9,
     binary     >= 0.5,
-    cmdargs    >= 0.4,
+    cmdargs    >= 0.5,
     mwc-random >= 0.8,
     hashable   >= 1.0,
     hashmap    >= 1.1
