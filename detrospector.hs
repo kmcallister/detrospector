@@ -3,15 +3,18 @@
   , ViewPatterns
   , PatternGuards
   , DeriveDataTypeable
-  , NamedFieldPuns #-}
+  , NamedFieldPuns
+  , RecordWildCards #-}
 module Main(main) where
 
-import Data.List
+import Data.Char
 import Data.Maybe
+import Data.List
 import Control.Applicative
 import Data.Typeable(Typeable)
 import Data.Data    (Data    )
 import qualified Data.HashMap           as H
+import qualified Data.HashSet           as HS
 import qualified Data.Hashable          as H
 import qualified Data.IntMap            as IM
 import qualified System.Random.MWC      as RNG
@@ -90,17 +93,17 @@ makeChain n ys = Chain n hm where
     f Nothing  = Just 1
     f (Just v) = Just $! (v+1)
 
--- Pick from a chain according to history.  Return a character
+-- Pick from a chain according to history.  Returns a character
 -- and the amount of history actually used.
 pick :: Chain -> Queue Char -> RNG.GenIO -> IO (Char, Int)
 pick (Chain _ h) s g = do x <- sample pt g; return (x,hn) where
   (pt, hn) = get s
 
   -- assumption: map is nonempty for empty key
-  get t = fromMaybe (get $ sTail t) $ look t where
-    sTail (S.viewl -> (_ S.:< r)) = r
-    sTail _ = error "empty chain"
-    look r = do x <- H.lookup r h; return (x, S.length r)
+  get  t = fromMaybe (get $ qTail t) $ look t where
+    qTail (S.viewl -> (_ S.:< r)) = r
+    qTail _ = error "qTail: empty queue"
+  look t = do x <- H.lookup t h; return (x, S.length t)
 
 -- Run a Markov chain, printing output forever.
 runChain :: Chain -> RNG.GenIO -> IO ()
@@ -109,6 +112,31 @@ runChain c@(Chain n _) g = go S.empty where
     (x,_) <- pick c s g
     putChar x
     go $! shift n x s
+
+-- Generate neologisms.
+neolog :: Mode -> Chain -> RNG.GenIO -> IO ()
+neolog Neolog{minLen,maxLen,wordFile} c@(Chain n _) g
+  = getWords >>= go where
+
+  getWords = (HS.fromList . map (S.fromList . Txt.unpack) . Txt.lines)
+    <$> Txt.readFile wordFile
+
+  go !wd = do
+    xs  <- fmap toLower <$> make S.empty S.empty
+    wdd <- if (S.length xs >= minLen) && HS.notMember xs wd
+      then putStrLn (F.toList xs) >> return (HS.insert xs wd)
+      else return wd
+    go wdd
+
+  make !xs !s | S.length s >= maxLen = return s
+              | otherwise = do
+      (x,h) <- pick c s g
+      -- give up if we don't use all history
+      if (h == S.length s) && isAlpha x
+        then make (xs S.|> x) (shift n x s)
+        else return xs
+
+neolog _ _ _ = error "impossible: wrong mode passed to neolog"
 
 -- orphan instance: Binary serialization of HashMap
 instance (Bin.Binary k, Bin.Binary v, H.Hashable k, Ord k)
@@ -124,15 +152,24 @@ instance Bin.Binary Chain where
   put (Chain n h) = Bin.put (n,h)
   get = uncurry Chain <$> Bin.get
 
+withChain :: FilePath -> (Chain -> RNG.GenIO -> IO a) -> IO a
+withChain p f = do
+  ch <- (Bin.decode . Z.decompress) <$> BSL.readFile p
+  RNG.withSystemRandom $ f ch
+
 data Mode
   = Train   { num      :: Int
             , out      :: FilePath }
   | Run     { chain    :: FilePath }
+  | Neolog  { chain    :: FilePath
+            , minLen   :: Int
+            , maxLen   :: Int
+            , wordFile :: FilePath }
   deriving (Show, Typeable, Data)
 
-train, run, modes :: Annotate Arg.Ann
+m_train, m_run, m_neolog, modes :: Annotate Arg.Ann
 
-train = Arg.record Train{num=undefined, out=undefined}
+m_train = Arg.record Train{}
   [ num := 3
         += Arg.help "Number of characters lookback"
   , out := error "Must specify output chain"
@@ -140,26 +177,44 @@ train = Arg.record Train{num=undefined, out=undefined}
         += Arg.help "Write chain to this file" ]
   += Arg.help "Train a Markov chain from standard input"
 
-run = Arg.record Run{chain=undefined}
+m_run = Arg.record Run{}
   [ chain := error "Must specify input chain"
           += Arg.typFile
           += Arg.help "Read chain from this file" ]
-  -- += Arg.help "Generate text from a Markov chain, forever"
+  -- += Arg.help "Generate random text"
 
-modes  = Arg.modes_  [run,train]
+m_neolog = Arg.record Neolog{}
+  [ chain    := error "Must specify input chain"
+             += Arg.typFile
+             += Arg.help "Read chain from this file"
+  , wordFile := "/usr/share/dict/words" --FIXME: platform?
+             += Arg.typFile
+             += Arg.help "List of real words, to be ignored"
+  , minLen   := 5
+             += Arg.explicit += Arg.name "m" += Arg.name "minLen"
+             += Arg.help "Minimum length of a word"
+  , maxLen   := 20
+             += Arg.explicit += Arg.name "n" += Arg.name "maxLen"
+             += Arg.help "Maximum length of a word" ]
+  += Arg.help "Generate random words"
+
+modes  = Arg.modes_  [m_run,m_train,m_neolog]
       += Arg.program "detrospector"
       += Arg.summary "detrospector: Markov chain text generator"
       -- += Arg.help    "Build and run Markov chains for text generation"
 
 mode :: Mode -> IO ()
 
-mode Train{num,out}
+mode Train{..}
   | num < 0 = error "train: n must be at least 0"
   | otherwise = Txt.getContents
     >>= BSL.writeFile out . Z.compress . Bin.encode . makeChain num
 
-mode Run{chain} = (Z.decompress <$> BSL.readFile chain)
-  >>= RNG.withSystemRandom . runChain . Bin.decode
+mode Run{chain}
+  = withChain chain runChain
+
+mode m@Neolog{chain}
+  = withChain chain $ neolog m
 
 main :: IO ()
 main = Arg.cmdArgs_ modes >>= mode
