@@ -43,6 +43,16 @@ cumulate t = PickTable r $ IM.fromList ps where
   (r,ps) = mapAccumR f 0 $ IM.assocs t
   f ra (x,n) = let rb = ra+n in (rb, (rb, toEnum x))
 
+-- Sample from a PickTable.
+sample :: PickTable -> RNG.GenIO -> IO Char
+sample (PickTable t im) g = do
+  k <- (`mod` t) <$> RNG.uniform g
+  case IM.split k im of
+    -- last key in im is t, and we know k < t
+    -- therefore the right list cannot be empty
+    (_, IM.toList -> ((_,x):_)) -> return x
+    _ -> error "impossible"
+
 type Queue a = S.Seq a
 
 -- Enqueue at one side while dropping from the other
@@ -80,26 +90,25 @@ makeChain n ys = Chain n hm where
     f Nothing  = Just 1
     f (Just v) = Just $! (v+1)
 
--- Run a Markov chain, printing output forever.
-runChain :: Chain -> RNG.GenIO -> IO ()
-runChain (Chain n h) g = go S.empty where
-  go s = do
-    x <- pick $ get s
-    putChar x
-    go $! shift n x s
+-- Pick from a chain according to history.  Return a character
+-- and the amount of history actually used.
+pick :: Chain -> Queue Char -> RNG.GenIO -> IO (Char, Int)
+pick (Chain _ h) s g = do x <- sample pt g; return (x,hn) where
+  (pt, hn) = get s
 
   -- assumption: map is nonempty for empty key
-  get s = fromMaybe (get $ stail s) $ H.lookup s h where
-    stail (S.viewl -> (_ S.:< t)) = t
-    stail _ = error "stail: empty Seq"
+  get t = fromMaybe (get $ sTail t) $ look t where
+    sTail (S.viewl -> (_ S.:< r)) = r
+    sTail _ = error "empty chain"
+    look r = do x <- H.lookup r h; return (x, S.length r)
 
-  pick (PickTable t im) = do
-    k <- (`mod` t) <$> RNG.uniform g
-    case IM.split k im of
-      -- last key in im is t, and we know k < t
-      -- therefore the right list cannot be empty
-      (_, IM.toList -> ((_,x):_)) -> return x
-      _ -> error "impossible"
+-- Run a Markov chain, printing output forever.
+runChain :: Chain -> RNG.GenIO -> IO ()
+runChain c@(Chain n _) g = go S.empty where
+  go s = do
+    (x,_) <- pick c s g
+    putChar x
+    go $! shift n x s
 
 -- orphan instance: Binary serialization of HashMap
 instance (Bin.Binary k, Bin.Binary v, H.Hashable k, Ord k)
