@@ -179,14 +179,14 @@ m_train = Arg.record Train{}
 
 m_run = Arg.record Run{}
   [ chain := error "Must specify input chain"
-          += Arg.typFile
-          += Arg.help "Read chain from this file" ]
+          += Arg.argPos 0
+          += Arg.typ "CHAIN_FILE" ]
   -- += Arg.help "Generate random text"
 
 m_neolog = Arg.record Neolog{}
   [ chain    := error "Must specify input chain"
-             += Arg.typFile
-             += Arg.help "Read chain from this file"
+             += Arg.argPos 0
+             += Arg.typ "CHAIN_FILE"
   , wordFile := "/usr/share/dict/words" --FIXME: platform?
              += Arg.typFile
              += Arg.help "List of real words, to be ignored"
