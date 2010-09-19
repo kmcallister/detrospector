@@ -12,10 +12,10 @@ import qualified System.Console.CmdArgs as Arg
 import           System.Console.CmdArgs((+=),Annotate((:=)))
 
 modes :: Annotate Arg.Ann
-modes  = Arg.modes_  [run,train,neolog]
+modes  = Arg.modes_  [train,run,neolog]
       += Arg.program "detrospector"
       += Arg.summary "detrospector: Markov chain text generator"
-      -- += Arg.help    "Build and run Markov chains for text generation"
+      += Arg.help    "Build and run Markov chains for text generation"
   where
 
   train = Arg.record Train{}
@@ -30,7 +30,7 @@ modes  = Arg.modes_  [run,train,neolog]
     [ chain := error "Must specify input chain"
             += Arg.argPos 0
             += Arg.typ "CHAIN_FILE" ]
-    -- += Arg.help "Generate random text"
+    += Arg.help "Generate random text"
   
   neolog = Arg.record Neolog{}
     [ chain    := error "Must specify input chain"
@@ -46,7 +46,7 @@ modes  = Arg.modes_  [run,train,neolog]
     , maxLen   := 20
                += Arg.explicit += Arg.name "n" += Arg.name "max"
                += Arg.help "Maximum length of a word" ]
-    += Arg.help "Generate random words"
+    += Arg.help "Invent new words not found in a dictionary"
 
 dispatch :: Mode -> IO ()
 dispatch m = case m of
