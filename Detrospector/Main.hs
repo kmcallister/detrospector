@@ -19,7 +19,7 @@ modes  = Arg.modes_  [train,run,neolog]
   where
 
   train = Arg.record Train{}
-    [ num := 3
+    [ num := 4
           += Arg.help "Number of characters lookback"
     , out := error "Must specify output chain"
           += Arg.typFile

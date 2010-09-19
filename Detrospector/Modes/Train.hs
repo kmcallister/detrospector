@@ -7,7 +7,6 @@ import Detrospector.Types
 import Detrospector.Modes
 
 import System.IO
-import Control.Monad
 import qualified Data.Text         as TS
 import qualified Data.Text.Lazy    as TL
 import qualified Data.Text.Lazy.IO as TL
@@ -17,12 +16,10 @@ import qualified Data.Sequence     as S
 import qualified Data.Foldable     as F
 
 -- foldl' with progress dots
-progFold :: Int -> (a -> b -> a) -> a -> [b] -> IO a
-progFold rate f = go 0 where
-  go _  !v [] = return v
-  go !n !v (x:xs) = do
-    when ((n `mod` rate) == 0) $ putChar '.'
-    go (n+1) (f v x) xs
+progFold :: (a -> b -> a) -> a -> [b] -> IO a
+progFold f = go where
+  go !v []     = return v
+  go !v (x:xs) = putChar '.' >> go (f v x) xs
 
 -- Build a Markov chain with n-Char history from some input text.
 train :: ModeFun
@@ -30,7 +27,7 @@ train Train{num,out} = do
   hSetBuffering stdout NoBuffering
   ys <- TL.getContents
   putStr "Calculating"
-  (_,h) <- progFold 1 (TS.foldl' roll) (emptyQ,H.empty) $ TL.toChunks ys
+  (_,h) <- progFold (TS.foldl' roll) (emptyQ,H.empty) $ TL.toChunks ys
   putStrLn "done."
   writeChain out . Chain num $ H.map cumulate h where
 

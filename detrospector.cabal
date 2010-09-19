@@ -16,10 +16,10 @@ description:
   iteratively pick new characters for output.  In other words, it samples a
   Markov chain derived from the source document.
   .
-  Run `detrospector -?' for usage information.  The program has several modes.
-  It can generate random text, or invent individual random words which are not
-  found in a dictionary.  These modes require a 'chain' file, which is built
-  from a source document by another mode.
+  Run `detrospector' `-?' for usage information.  The program has several
+  modes.  It can generate random text, or invent individual random words which
+  are not found in a dictionary.  These modes require a chain file, which is
+  built from a source document in another mode.
   .
   Design goals include speed and full Unicode support.  I welcome suggestions
   and patches regarding any aspect of this program.

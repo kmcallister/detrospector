@@ -93,10 +93,10 @@ pick (Chain _ h) s g = do x <- sample pt g; return (x,hn) where
   (pt, hn) = get s
 
   -- assumption: map is nonempty for empty key
-  get  t = fromMaybe (get $ qTail t) $ look t where
+  get  t = fromMaybe (get $ qTail t) look where
     qTail (S.viewl -> (_ S.:< r)) = r
     qTail _ = error "qTail: empty queue"
-  look t = do x <- H.lookup t h; return (x, S.length t)
+    look = do x <- H.lookup t h; return (x, S.length t)
 
 -- orphan instance: make Seq hashable
 instance (H.Hashable a) => H.Hashable (S.Seq a) where
