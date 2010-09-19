@@ -27,7 +27,7 @@ go Neolog{minLen,maxLen,wordFile} c@(Chain n _) g
       else return wd
     loop wdd
 
-  make !xs !s | qLength s >= maxLen = return s
+  make !xs !s | qLength xs >= maxLen = return xs
               | otherwise = do
       (x,h) <- pick c s g
       -- give up if we don't use all history
