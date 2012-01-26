@@ -21,6 +21,9 @@ progFold f = go where
   go !v []     = return v
   go !v (x:xs) = putChar '.' >> go (f v x) xs
 
+-- The guts of a Chain, before we apply 'cumulate'.
+type FreqChain = H.HashMap (S.Seq Char) FreqTable
+
 -- Build a Markov chain with n-Char history from some input text.
 train :: ModeFun
 train Train{num,out} = do
@@ -31,14 +34,23 @@ train Train{num,out} = do
   putStrLn "done."
   writeChain out . Chain num $ H.map cumulate h where
 
-  roll (!s,!h) x = (shift num x s, F.foldr alter h $ S.tails s) where
+  -- Process another character, updating a fold state of the Markov chain
+  -- history and the accumulated FreqChain.
+  roll :: (S.Seq Char, FreqChain) -> Char -> (S.Seq Char, FreqChain)
+  roll (!s, !fci) x = (shift num x s, F.foldr occur fci $ S.tails s) where
 
-    alter k hm = H.insert k (ins $ H.lookup k hm) hm
+    -- Increment the occurrence count for 'x' following history 'hist'.
+    occur :: S.Seq Char -> FreqChain -> FreqChain
+    occur hist fc = H.insert hist (bump $ H.lookup hist fc) fc
 
-    ins Nothing  = IM.singleton (fromEnum x) 1
-    ins (Just v) = IM.alter inc (fromEnum x) v
+    -- Given a FreqTable (or Nothing), return a FreqTable with one more
+    -- count for 'x'.
+    bump :: Maybe FreqTable -> FreqTable
+    bump Nothing  = IM.singleton (fromEnum x) 1
+    bump (Just v) = IM.alter incMaybe (fromEnum x) v
 
-    inc Nothing  = Just 1
-    inc (Just n) = Just $! (n+1)
+    incMaybe :: Maybe Int -> Maybe Int
+    incMaybe Nothing  = Just 1
+    incMaybe (Just n) = Just $! (n+1)
 
 train _ = error "impossible: wrong mode passed to train"
