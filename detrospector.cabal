@@ -43,5 +43,5 @@ executable detrospector
     cmdargs    >= 0.6,
     mwc-random >= 0.8,
     hashable   >= 1.0,
-    hashmap    >= 1.1
+    hashmap    >= 1.2
   ghc-options: -Wall

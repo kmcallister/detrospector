@@ -83,7 +83,7 @@ shift n x q
 -- The Markov chain itself.
 -- (Chain n hm) maps subsequences of up to n Chars to finite
 -- Char distributions represented by PickTables in hm.
-data Chain = Chain Int (H.HashMap (Queue Char) PickTable)
+data Chain = Chain Int (H.Map (Queue Char) PickTable)
   deriving (Show)
 
 -- Pick from a chain according to history.  Returns a character
@@ -105,7 +105,7 @@ instance (H.Hashable a) => H.Hashable (S.Seq a) where
 
 -- orphan instance: Binary serialization of HashMap
 instance (Bin.Binary k, Bin.Binary v, H.Hashable k, Ord k)
-       => Bin.Binary (H.HashMap k v) where
+       => Bin.Binary (H.Map k v) where
   put = Bin.put . H.assocs
   get = H.fromList <$> Bin.get
   
