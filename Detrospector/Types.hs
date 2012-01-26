@@ -16,7 +16,7 @@ module Detrospector.Types(
 import Data.Maybe
 import Data.List
 import Control.Applicative
-import qualified Data.HashMap           as H
+import qualified Data.HashMap.Strict    as H
 import qualified Data.Hashable          as H
 import qualified Data.IntMap            as IM
 import qualified System.Random.MWC      as RNG
@@ -83,7 +83,7 @@ shift n x q
 -- The Markov chain itself.
 -- (Chain n hm) maps subsequences of up to n Chars to finite
 -- Char distributions represented by PickTables in hm.
-data Chain = Chain Int (H.Map (Queue Char) PickTable)
+data Chain = Chain Int (H.HashMap (Queue Char) PickTable)
   deriving (Show)
 
 -- Pick from a chain according to history.  Returns a character
@@ -105,8 +105,8 @@ instance (H.Hashable a) => H.Hashable (S.Seq a) where
 
 -- orphan instance: Binary serialization of HashMap
 instance (Bin.Binary k, Bin.Binary v, H.Hashable k, Ord k)
-       => Bin.Binary (H.Map k v) where
-  put = Bin.put . H.assocs
+       => Bin.Binary (H.HashMap k v) where
+  put = Bin.put . H.toList
   get = H.fromList <$> Bin.get
   
 instance Bin.Binary PickTable where

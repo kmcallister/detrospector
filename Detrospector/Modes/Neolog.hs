@@ -22,7 +22,7 @@ go Neolog{minLen,maxLen,wordFile} c@(Chain n _) g
 
   loop !wd = do
     xs  <- fmap toLower <$> make emptyQ emptyQ
-    wdd <- if (qLength xs >= minLen) && HS.notMember xs wd
+    wdd <- if (qLength xs >= minLen) && not (HS.member xs wd)
       then putStrLn (queueToList xs) >> return (HS.insert xs wd)
       else return wd
     loop wdd

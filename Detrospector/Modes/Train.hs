@@ -7,13 +7,13 @@ import Detrospector.Types
 import Detrospector.Modes
 
 import System.IO
-import qualified Data.Text         as TS
-import qualified Data.Text.Lazy    as TL
-import qualified Data.Text.Lazy.IO as TL
-import qualified Data.HashMap      as H
-import qualified Data.IntMap       as IM
-import qualified Data.Sequence     as S
-import qualified Data.Foldable     as F
+import qualified Data.Text           as TS
+import qualified Data.Text.Lazy      as TL
+import qualified Data.Text.Lazy.IO   as TL
+import qualified Data.HashMap.Strict as H
+import qualified Data.IntMap         as IM
+import qualified Data.Sequence       as S
+import qualified Data.Foldable       as F
 
 -- foldl' with progress dots
 progFold :: (a -> b -> a) -> a -> [b] -> IO a
@@ -31,16 +31,14 @@ train Train{num,out} = do
   putStrLn "done."
   writeChain out . Chain num $ H.map cumulate h where
 
-  roll (!s,!h) x
-    = (shift num x s, F.foldr (H.alter $ ins x) h $ S.tails s)
+  roll (!s,!h) x = (shift num x s, F.foldr alter h $ S.tails s) where
 
-  ins x Nothing  = Just $! sing x
-  ins x (Just v) = Just $! incr x v
+    alter k hm = H.insert k (ins $ H.lookup k hm) hm
 
-  sing x = IM.singleton (fromEnum x) 1
+    ins Nothing  = IM.singleton (fromEnum x) 1
+    ins (Just v) = IM.alter inc (fromEnum x) v
 
-  incr x = IM.alter f $ fromEnum x where
-    f Nothing  = Just 1
-    f (Just v) = Just $! (v+1)
+    inc Nothing  = Just 1
+    inc (Just n) = Just $! (n+1)
 
 train _ = error "impossible: wrong mode passed to train"
