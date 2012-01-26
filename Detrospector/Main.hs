@@ -16,6 +16,7 @@ modes  = Arg.modes_  [train,run,neolog]
       += Arg.program "detrospector"
       += Arg.summary "detrospector: Markov chain text generator"
       += Arg.help    "Build and run Markov chains for text generation"
+      += Arg.helpArg [Arg.name "h"]
   where
 
   train = Arg.record Train{}
