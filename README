@@ -1,0 +1,6 @@
+detrospector is a Markov chain text generator.
+
+See detrospector.cabal for more information, as well as
+
+  http://hackage.haskell.org/package/detrospector
+  http://mainisusuallyafunction.blogspot.com/2010/10/tour-of-real-toy-haskell-program-part-1.html

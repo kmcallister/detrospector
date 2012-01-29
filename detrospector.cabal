@@ -7,7 +7,7 @@ category:            Text, Natural Language Processing
 author:              Keegan McAllister <mcallister.keegan@gmail.com>
 maintainer:          Keegan McAllister <mcallister.keegan@gmail.com>
 build-type:          Simple
-cabal-version:       >=1.2
+cabal-version:       >=1.6
 description:
   The `detrospector' program generates random text conforming to the general
   style and diction of a given source document.  It associates each
@@ -23,6 +23,9 @@ description:
   .
   Design goals include speed and full Unicode support.  I welcome suggestions
   and patches regarding any aspect of this program.
+
+extra-source-files:
+    README
 
 executable detrospector
   main-is:       detrospector.hs
@@ -45,3 +48,7 @@ executable detrospector
     hashable   >= 1.0,
     unordered-containers >= 0.1
   ghc-options: -Wall
+
+source-repository head
+  type:     git
+  location: git://github.com/kmcallister/detrospector.git
