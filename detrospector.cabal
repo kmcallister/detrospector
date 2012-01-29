@@ -23,6 +23,15 @@ description:
   .
   Design goals include speed and full Unicode support.  I welcome suggestions
   and patches regarding any aspect of this program.
+  .
+  New in version 0.2:
+  .
+    * Use the @unordered-containers@ library instead of @hashmap@.  Also fixes
+      a build failure.
+  .
+    * Accept @-h@ for help, in addition to @-?@.
+  .
+    * Added public GitHub repository.
 
 extra-source-files:
     README
