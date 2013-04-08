@@ -100,8 +100,7 @@ pick (Chain _ h) s g = do x <- sample pt g; return (x,hn) where
 
 -- orphan instance: make Seq hashable
 instance (H.Hashable a) => H.Hashable (S.Seq a) where
-  {-# SPECIALIZE instance H.Hashable (S.Seq Char) #-}
-  hash = F.foldl' (\acc h -> acc `H.combine` H.hash h) 0
+  hashWithSalt = F.foldl' H.hashWithSalt
 
 -- orphan instance: Binary serialization of HashMap
 instance (Bin.Binary k, Bin.Binary v, H.Hashable k, Ord k)

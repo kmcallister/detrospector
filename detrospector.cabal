@@ -1,5 +1,5 @@
 name:                detrospector
-version:             0.2
+version:             0.3
 license:             BSD3
 license-file:        LICENSE
 synopsis:            Markov chain text generator
@@ -24,14 +24,9 @@ description:
   Design goals include speed and full Unicode support.  I welcome suggestions
   and patches regarding any aspect of this program.
   .
-  New in version 0.2:
+  New in version 0.3:
   .
-    * Use the @unordered-containers@ library instead of @hashmap@.  Also fixes
-      a build failure.
-  .
-    * Accept @-h@ for help, in addition to @-?@.
-  .
-    * Added public GitHub repository.
+    * Compatible with @hashable@ 1.2
 
 extra-source-files:
     README
@@ -54,7 +49,7 @@ executable detrospector
     binary     >= 0.5,
     cmdargs    >= 0.6,
     mwc-random >= 0.8,
-    hashable   >= 1.0,
+    hashable   >= 1.2,
     unordered-containers >= 0.1
   ghc-options: -Wall
 
